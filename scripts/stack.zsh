@@ -137,6 +137,11 @@ _stack_cascade_from() {
     _stack_info "Rebasing '$child' onto '$parent'..."
 
     if _stack_wt_exists "$child"; then
+      if [[ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]]; then
+        _stack_err "'$child' has uncommitted changes — stash or commit before cascading."
+        printf '\n  cd %s\n' "$wt_path"
+        return 1
+      fi
       if ! git -C "$wt_path" rebase "$parent" --quiet 2>/dev/null; then
         git -C "$wt_path" rebase --abort 2>/dev/null
         _stack_err "Conflict rebasing '$child' onto '$parent'."
@@ -150,6 +155,10 @@ _stack_cascade_from() {
     else
       _stack_warn "'$child' has no worktree — falling back to checkout (run 'stack attach $child')"
       git checkout "$child" --quiet
+      if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+        _stack_err "'$child' has uncommitted changes — stash or commit before cascading."
+        return 1
+      fi
       if ! git rebase "$parent" --quiet 2>/dev/null; then
         git rebase --abort 2>/dev/null
         _stack_err "Conflict rebasing '$child' onto '$parent'."
