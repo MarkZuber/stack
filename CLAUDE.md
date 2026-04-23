@@ -34,5 +34,5 @@ This repo contains a single sourced zsh script: `scripts/stack.zsh`.
 scripts/
 ├── stack.zsh        # Sourced shell function — all commands + dispatcher
 ├── stack_test.sh    # Self-contained test suite
-└── README.md        # Full command reference and workflow examples
+README.md             # Full command reference and workflow examples
 ```

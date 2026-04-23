@@ -1,8 +1,12 @@
-# stack — Stacked Diff Manager (GitHub & GitLab)
+# stack — Stacked Feature Branch Manager (GitHub & GitLab)
 
-GitLab and GitHub do not natively support stacked diffs (chained MRs/PRs where each targets the previous branch rather than `main`). When you have a long chain of dependent changes, getting them reviewed separately — and keeping them in sync as code review feedback arrives — requires manual rebasing across every branch in the chain.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+GitLab and GitHub do not natively support stacked feature branches (chained MRs/PRs where each targets the previous branch rather than `main`). When you have a long chain of dependent changes, getting them reviewed separately — and keeping them in sync as code review feedback arrives — requires manual rebasing across every branch in the chain.
 
 This tool automates that: it tracks branch relationships in local git config, manages a worktree per branch so you can work on any branch without losing context, and can rebase an entire chain with one command.
+
+Having the feature branches in separate worktrees also enables easily working in parallel with tools like Claude or GitHub Copilot
 
 ---
 
@@ -34,10 +38,15 @@ Each stacked branch gets its own git worktree at `${WT_ROOT:-$HOME/wt}/<repo>/<b
 
 **Install**
 
-Add to `~/.zshrc`:
+Clone the repo and source the script from `~/.zshrc`:
 
 ```zsh
-source /path/to/scripts/stack.zsh
+git clone https://github.com/markzuber/stack.git ~/stack
+```
+
+```zsh
+# ~/.zshrc
+source ~/stack/scripts/stack.zsh
 ```
 
 Then open a new shell (or `source ~/.zshrc`).
@@ -89,11 +98,12 @@ If the branch doesn't exist locally, `stack attach` attempts to fetch it from `o
 
 ### `stack switch <branch>`
 
-Cds into a branch's worktree. `stack switch main` returns to the main repo root.
+Cds into a branch's worktree. `stack switch main` (or no argument) returns to the main repo root.
 
 ```zsh
 stack switch feat-2
-stack switch main
+stack switch main    # return to main repo root
+stack switch         # same as above
 ```
 
 ### `stack rm <branch> [-k | --keep-branch]`
@@ -147,7 +157,7 @@ stack push
 Uses the `claude` CLI to generate a PR/MR description from the current branch's diff and commits, then posts it directly to GitHub or GitLab. Requires `claude` to be installed and authenticated, and the branch to have an open PR/MR.
 
 ```zsh
-stack update-summary             # generate and post description
+stack update-summary              # generate and post description
 stack update-summary --dry-run   # print the generated description, don't post
 ```
 
@@ -179,8 +189,7 @@ stack land                 # uses current branch as the landed branch
 
 > **Important**: Before running `stack land`, pull the merged commits from the remote so your local `main` is up to date:
 > ```zsh
-> git -C "$(git worktree list | head -1 | awk '{print $1}')" pull
-> # or: stack switch main && git pull
+> stack switch main && git pull
 > stack switch feat-1
 > stack land -d
 > ```
@@ -225,11 +234,11 @@ git add api.go && git commit -m "feat-1: implement API"
 stack cascade            # rebases feat-2 in place, stays on feat-1
 stack push               # force-pushes feat-1 + feat-2 to origin
 
-# 6. Create MRs for review (each targets its stack parent)
-stack mr --fill          # from feat-1's wt
+# 6. Create MRs for review (each targets its stack parent as the base branch)
+stack mr --fill          # MR for feat-1, base branch: main
 
 stack switch feat-2
-stack mr --fill          # this MR targets feat-1, not main
+stack mr --fill          # MR for feat-2, base branch: feat-1 (not main)
 
 # 7. Code review feedback on feat-1 → amend, cascade again
 stack switch feat-1
@@ -267,11 +276,39 @@ ERROR: Conflict rebasing 'feat-2' onto 'feat-1'.
 To resolve manually:
   1. cd ~/wt/repo/feat-2
   2. git rebase feat-1
-  3. Resolve conflicts, then: git add <files> && git rebase --continue
+  3. Resolve conflicts: git add <files> && git rebase --continue
   4. Re-run: stack cascade
 ```
 
 After resolving and completing the rebase, run `stack cascade` again from feat-1's worktree — it will pick up where it left off.
+
+### Uncommitted changes blocking cascade
+
+If a descendant branch has uncommitted changes, cascade stops before attempting the rebase:
+
+```
+ERROR: 'feat-2' has uncommitted changes — stash or commit before cascading.
+
+  cd ~/wt/repo/feat-2
+```
+
+Stash or commit the changes in that worktree, then re-run `stack cascade`.
+
+### Conflict during `stack land`
+
+`stack land` rebases children onto the grandparent branch and will stop on a conflict with the same instructions:
+
+```
+ERROR: Conflict rebasing 'feat-2' onto 'main'.
+
+To resolve manually:
+  1. cd ~/wt/repo/feat-2
+  2. git rebase main
+  3. Resolve conflicts: git add <files> && git rebase --continue
+  4. Re-run: stack land feat-1
+```
+
+After resolving, re-run `stack land <landed-branch>` to complete the operation.
 
 ### Branch without a worktree
 
@@ -312,3 +349,19 @@ gh pr edit <number> --base main
 # GitLab:
 glab mr update <mr-id> --target-branch main
 ```
+
+---
+
+## Contributing
+
+```zsh
+zsh scripts/stack_test.sh
+```
+
+The test suite requires only zsh and git. `gh`/`glab` are only needed if you're manually testing the `stack mr`/`stack pr` commands outside the suite.
+
+---
+
+## License
+
+[MIT](LICENSE) © Mark Zuber
