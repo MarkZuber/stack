@@ -50,6 +50,18 @@ By default worktrees are created at `$HOME/wt/<repo>/<branch>/`. Override with:
 export WT_ROOT=~/code/worktrees   # add to ~/.zshrc
 ```
 
+**Force push policy**
+
+`stack push` uses `--force-with-lease`, which requires force pushes to be allowed on feature branches. This is the default for most repos — branch protection rules typically only restrict `main`/`master`.
+
+If your repo has a blanket org policy that disables force pushes on all branches, stacked diffs cannot work: rebasing rewrites history and force pushing the result is unavoidable.
+
+The recommended setup:
+- **GitHub**: Add a branch protection rule (or ruleset) targeting `main` only. Feature branches are unprotected by default.
+- **GitLab**: Under Settings → Repository → Protected Branches, protect `main`/`master` only.
+
+`--force-with-lease` is safer than `--force` — it refuses to push if the remote has commits you haven't fetched, so it won't silently overwrite someone else's work.
+
 **Optional short aliases**
 
 ```zsh
